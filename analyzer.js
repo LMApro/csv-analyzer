@@ -7,14 +7,7 @@ let file = `reconnected-${date}.csv`
 let data = [];
 let dataMap = {};
 
-function compare(sign, item1, item2) {
-    if (sign === '=') return item1 === item2;
-    if (sign === '<') return item1 < item2;
-    if (sign === '>') return item1 > item2;
-}
-
-function reconnectDelaysByCid(data, options) {
-    let {threshold, times, thresholdSign, timesSign} = options;
+function reconnectDelaysByCid(data) {
     let lastTime = {};
     let reconnectDelaysByCid = data.reduce((accumulate, cur) => {
         let t = moment(cur['@timestamp'].substr(cur['@timestamp'].indexOf(',') + 2), 'HH:mm:ss.SSS');
@@ -34,7 +27,10 @@ function reconnectDelaysByCid(data, options) {
             return acc + current;
         }, 0);
         reconnectDelaysByCid[cid].avg = reconnectDelaysByCid[cid].sum / reconnectDelaysByCid[cid].length;
-        if (compare(thresholdSign, reconnectDelaysByCid[cid].avg, threshold) && compare(timesSign, reconnectDelaysByCid[cid].length, times)) {
+        if (
+            // reconnectDelaysByCid[cid].avg <= 30 &&
+            reconnectDelaysByCid[cid].length >= 100
+        ) {
             filtered[cid] = reconnectDelaysByCid[cid]
         }
     }
@@ -48,13 +44,9 @@ fs.createReadStream(`./${file}`).pipe(csvParser())
         data.push(row);
     })
     .on('end', () => {
-        let filtered = reconnectDelaysByCid(data, {
-            thresholdSign: '<',
-            threshold: 5*60,
-            timesSign: '>',
-            times: 5,
-        });
+        let filtered = reconnectDelaysByCid(data);
         for (let cid in filtered) {
             console.log(dataMap[cid], filtered[cid]);
         }
+        console.log('Total:', Object.keys(dataMap).length, 'Filtered:', Object.keys(filtered).length, 'Ratio:', (Object.keys(filtered).length*100 / Object.keys(dataMap).length).toFixed(1) + '%');
     })
