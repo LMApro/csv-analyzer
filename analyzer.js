@@ -5,8 +5,16 @@ const moment = require('moment');
 const date = process.argv[2];
 let file = `reconnected-${date}.csv`
 let data = [];
+let dataMap = {};
 
-function reconnectDelaysByCid(data, threshold, times) {
+function compare(sign, item1, item2) {
+    if (sign === '=') return item1 === item2;
+    if (sign === '<') return item1 < item2;
+    if (sign === '>') return item1 > item2;
+}
+
+function reconnectDelaysByCid(data, options) {
+    let {threshold, times, thresholdSign, timesSign} = options;
     let lastTime = {};
     let reconnectDelaysByCid = data.reduce((accumulate, cur) => {
         let t = moment(cur['@timestamp'].substr(cur['@timestamp'].indexOf(',') + 2), 'HH:mm:ss.SSS');
@@ -26,7 +34,7 @@ function reconnectDelaysByCid(data, threshold, times) {
             return acc + current;
         }, 0);
         reconnectDelaysByCid[cid].avg = reconnectDelaysByCid[cid].sum / reconnectDelaysByCid[cid].length;
-        if (reconnectDelaysByCid[cid].avg < threshold && reconnectDelaysByCid[cid].length > times) {
+        if (compare(thresholdSign, reconnectDelaysByCid[cid].avg, threshold) && compare(timesSign, reconnectDelaysByCid[cid].length, times)) {
             filtered[cid] = reconnectDelaysByCid[cid]
         }
     }
@@ -36,10 +44,17 @@ function reconnectDelaysByCid(data, threshold, times) {
 
 fs.createReadStream(`./${file}`).pipe(csvParser())
     .on('data', (row) => {
+        dataMap[row.cid] = row;
         data.push(row);
     })
     .on('end', () => {
-        let filtered = reconnectDelaysByCid(data, 5*60, 5);
-        console.log(Object.keys(filtered));
-        console.log(Object.keys(filtered).length);
+        let filtered = reconnectDelaysByCid(data, {
+            thresholdSign: '<',
+            threshold: 5*60,
+            timesSign: '>',
+            times: 5,
+        });
+        for (let cid in filtered) {
+            console.log(dataMap[cid], filtered[cid]);
+        }
     })
