@@ -7,6 +7,8 @@ let file = `reconnected-${date}.csv`
 let data = [];
 let dataMap = {};
 
+let debug = false
+
 function reconnectDelaysByCid(data) {
     let lastTime = {};
     let reconnectDelaysByCid = data.reduce((accumulate, cur) => {
@@ -28,8 +30,8 @@ function reconnectDelaysByCid(data) {
         }, 0);
         reconnectDelaysByCid[cid].avg = reconnectDelaysByCid[cid].sum / reconnectDelaysByCid[cid].length;
         if (
-            // reconnectDelaysByCid[cid].avg <= 30 &&
-            reconnectDelaysByCid[cid].length >= 100
+            // reconnectDelaysByCid[cid].avg < 10*30 && 
+            reconnectDelaysByCid[cid].length > 10 
         ) {
             filtered[cid] = reconnectDelaysByCid[cid]
         }
@@ -46,7 +48,8 @@ fs.createReadStream(`./${file}`).pipe(csvParser())
     .on('end', () => {
         let filtered = reconnectDelaysByCid(data);
         for (let cid in filtered) {
-            console.log(dataMap[cid], filtered[cid]);
+            // console.log(dataMap[cid], filtered[cid]);
         }
         console.log('Total:', Object.keys(dataMap).length, 'Filtered:', Object.keys(filtered).length, 'Ratio:', (Object.keys(filtered).length*100 / Object.keys(dataMap).length).toFixed(1) + '%');
+        debug && console.log(Object.keys(filtered));
     })
