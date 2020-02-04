@@ -2,6 +2,8 @@ const csvParser = require('csv-parser');
 const fs = require('fs');
 const moment = require('moment');
 
+const statistic = require('./statistic-lib');
+
 const date = process.argv[2];
 let file = `reconnected-${date}.csv`
 let data = [];
@@ -20,7 +22,11 @@ function findMaxCounts(data, max) {
 
     }
 
-    return filtered;
+    return Object.values(filtered).sort((a,b) => b.count - a.count).slice(0, max);
+}
+
+function getDataByCid(data, cid) {
+    return data.filter(item => item.cid == cid).map(i => i['@timestamp'])
 }
 
 function reconnectDelaysByCid(data) {
@@ -39,13 +45,10 @@ function reconnectDelaysByCid(data) {
     let filtered = {};
 
     for (let cid in reconnectDelaysByCid) {
-        reconnectDelaysByCid[cid].sum = reconnectDelaysByCid[cid].reduce((acc,current) => {
-            return acc + current;
-        }, 0);
-        reconnectDelaysByCid[cid].avg = reconnectDelaysByCid[cid].sum / reconnectDelaysByCid[cid].length;
+        reconnectDelaysByCid[cid].avg = statistic.mean(reconnectDelaysByCid[cid])
         if (
-            // reconnectDelaysByCid[cid].avg > 10*30 && 
-            reconnectDelaysByCid[cid].length <= 5 
+            reconnectDelaysByCid[cid].avg > 5*30 &&
+            reconnectDelaysByCid[cid].length > 5 
         ) {
             filtered[cid] = reconnectDelaysByCid[cid]
         }
@@ -60,13 +63,14 @@ fs.createReadStream(`./${file}`).pipe(csvParser())
         data.push(row);
     })
     .on('end', () => {
-        // let filtered = reconnectDelaysByCid(data);
-        // for (let cid in filtered) {
-        //     // console.log(dataMap[cid], filtered[cid]);
-        // }
-        // console.log('Total:', Object.keys(dataMap).length, 'Filtered:', Object.keys(filtered).length, 'Ratio:', (Object.keys(filtered).length*100 / Object.keys(dataMap).length).toFixed(1) + '%');
-        // debug && console.log(Object.keys(filtered));
+        // console.log(getDataByCid(data, '4021beca-ab78-48e2-87e9-dca22e3a73a6'));
+        let filtered = reconnectDelaysByCid(data);
+        for (let cid in filtered) {
+            // console.log(dataMap[cid], filtered[cid]);
+        }
+        console.log('Total:', Object.keys(dataMap).length, 'Filtered:', Object.keys(filtered).length, 'Ratio:', (Object.keys(filtered).length*100 / Object.keys(dataMap).length).toFixed(1) + '%');
+        console.log(Object.keys(filtered));
 
-        let filtered = findMaxCounts(data);
-        console.log(Object.values(filtered).sort((a,b) => b.count - a.count));
+        // let filtered = findMaxCounts(data, 20);
+        // console.log(filtered);
     })
