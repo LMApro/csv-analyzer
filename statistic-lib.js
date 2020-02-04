@@ -1,4 +1,7 @@
 var arr = {	
+    count: function(array) {
+        return array.length
+    },
 	max: function(array) {
 		return Math.max.apply(null, array);
 	},
