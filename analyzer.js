@@ -2,12 +2,32 @@ const csvParser = require('csv-parser');
 const fs = require('fs');
 const moment = require('moment');
 
+const statistic = require('./statistic-lib');
+
 const date = process.argv[2];
 let file = `reconnected-${date}.csv`
 let data = [];
 let dataMap = {};
 
 let debug = false
+
+function findMaxCounts(data, max) {
+    let filtered = {};
+    for (let i = 0; i < data.length; i++) {
+        let record = data[i];
+        if (!filtered[record.cid]) {
+            filtered[record.cid] = {...record, count: 0};
+        }
+        filtered[record.cid].count ++
+
+    }
+
+    return Object.values(filtered).sort((a,b) => b.count - a.count).slice(0, max);
+}
+
+function getDataByCid(data, cid) {
+    return data.filter(item => item.cid == cid).map(i => i['@timestamp'])
+}
 
 function reconnectDelaysByCid(data) {
     let lastTime = {};
@@ -22,22 +42,13 @@ function reconnectDelaysByCid(data) {
         return accumulate;
     }, {});
 
-    let filtered = {};
+    return Object.values(reconnectDelaysByCid);
+}
 
-    for (let cid in reconnectDelaysByCid) {
-        reconnectDelaysByCid[cid].sum = reconnectDelaysByCid[cid].reduce((acc,current) => {
-            return acc + current;
-        }, 0);
-        reconnectDelaysByCid[cid].avg = reconnectDelaysByCid[cid].sum / reconnectDelaysByCid[cid].length;
-        if (
-            // reconnectDelaysByCid[cid].avg < 10*30 && 
-            reconnectDelaysByCid[cid].length > 10 
-        ) {
-            filtered[cid] = reconnectDelaysByCid[cid]
-        }
-    }
-
-    return filtered
+function filterByReconnectDelay(data, avg, times) {
+    return data.filter(item => {
+        return statistic.mean(item) > avg && statistic.count(item) > times
+    })
 }
 
 fs.createReadStream(`./${file}`).pipe(csvParser())
@@ -46,10 +57,12 @@ fs.createReadStream(`./${file}`).pipe(csvParser())
         data.push(row);
     })
     .on('end', () => {
-        let filtered = reconnectDelaysByCid(data);
-        for (let cid in filtered) {
-            // console.log(dataMap[cid], filtered[cid]);
-        }
-        console.log('Total:', Object.keys(dataMap).length, 'Filtered:', Object.keys(filtered).length, 'Ratio:', (Object.keys(filtered).length*100 / Object.keys(dataMap).length).toFixed(1) + '%');
-        debug && console.log(Object.keys(filtered));
+        let delays = reconnectDelaysByCid(data);
+        let filtered = filterByReconnectDelay(delays, 5*30, 10)
+        // console.log(getDataByCid(data, '4021beca-ab78-48e2-87e9-dca22e3a73a6'));
+        console.log('Total:', Object.keys(dataMap).length, 'Filtered:', filtered.length, 'Ratio:', (filtered.length*100 / Object.keys(dataMap).length).toFixed(1) + '%');
+        console.log(filtered);
+
+        // let filtered = findMaxCounts(data, 20);
+        // console.log(filtered);
     })
